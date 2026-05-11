@@ -12,6 +12,9 @@
 - `docs/bugreports/BUG-002.md` — дефект отрицательного перевода
 - `tests/test_defects.py` — автотесты на дефекты
 - `.github/workflows/selenium.yml` — CI
+- `.github/ISSUE_TEMPLATE/bug_001_card_number_17_digits.md` — шаблон GitHub Issue для BUG-001
+- `.github/ISSUE_TEMPLATE/bug_002_negative_transfer.md` — шаблон GitHub Issue для BUG-002
+- `docs/github-issues.md` — инструкция по заведению багов в GitHub Issues
 
 ## Локальный запуск тестов
 ```bash
