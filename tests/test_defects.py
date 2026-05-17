@@ -2,10 +2,10 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
-import time
 
 import pytest
 from selenium import webdriver
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -32,7 +32,7 @@ def app_url():
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
-    yield f"http://127.0.0.1:{server.server_port}/index.html"
+    yield f"http://127.0.0.1:{server.server_port}/"
 
     server.shutdown()
     server.server_close()
@@ -45,7 +45,6 @@ def driver():
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
-    options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
 
     drv = webdriver.Chrome(
         service=Service(ChromeDriverManager().install()),
@@ -53,18 +52,6 @@ def driver():
     )
 
     yield drv
-
-    print("\n===== BROWSER LOGS =====")
-    try:
-        logs = drv.get_log("browser")
-        if logs:
-            for log in logs:
-                print(log)
-        else:
-            print("No browser logs")
-    except Exception as error:
-        print("Could not read browser logs:", error)
-
     drv.quit()
 
 
@@ -81,13 +68,9 @@ def open_app(drv, app_url):
         ) == "complete"
     )
 
-    time.sleep(2)
-
-    print("\n===== PAGE DEBUG =====")
-    print("CURRENT URL:", drv.current_url)
-    print("TITLE:", drv.title)
-    print("BODY:", drv.find_element(By.TAG_NAME, "body").text)
-    print("HTML:", drv.page_source)
+    wait(drv).until(
+        lambda driver: driver.find_element(By.ID, "root")
+    )
 
 
 def select_account_with_transfer_form(drv):
@@ -96,12 +79,21 @@ def select_account_with_transfer_form(drv):
     )
 
     for card in cards:
-        drv.execute_script("arguments[0].scrollIntoView({block: 'center'});", card)
+        drv.execute_script(
+            "arguments[0].scrollIntoView({block: 'center'});",
+            card
+        )
         drv.execute_script("arguments[0].click();", card)
 
-        inputs = drv.find_elements(By.CSS_SELECTOR, "input")
-        if len(inputs) >= 2:
+        try:
+            WebDriverWait(drv, 2).until(
+                lambda driver: len(
+                    driver.find_elements(By.CSS_SELECTOR, "input")
+                ) >= 2
+            )
             return
+        except TimeoutException:
+            continue
 
     raise AssertionError("Transfer form was not opened after clicking account cards")
 
@@ -120,19 +112,6 @@ def find_card_input(drv):
 
 def find_amount_input(drv):
     return get_inputs(drv)[1]
-
-
-def find_transfer_button(drv):
-    return wait(drv).until(
-        lambda driver: next(
-            (
-                button
-                for button in driver.find_elements(By.CSS_SELECTOR, "button")
-                if "Перевести" in button.text
-            ),
-            False
-        )
-    )
 
 
 def set_input_value(element, value):
@@ -166,8 +145,16 @@ def test_bug_002_negative_transfer_must_be_blocked(driver, app_url):
     amount_input = find_amount_input(driver)
     set_input_value(amount_input, "-1000")
 
-    transfer_button = find_transfer_button(driver)
+    transfer_buttons = driver.find_elements(
+        By.XPATH,
+        "//button[contains(normalize-space(), 'Перевести')]"
+    )
 
-    assert not transfer_button.is_enabled(), (
+    has_enabled_transfer_button = any(
+        button.is_displayed() and button.is_enabled()
+        for button in transfer_buttons
+    )
+
+    assert not has_enabled_transfer_button, (
         "Transfer button must be disabled for negative amount"
     )
