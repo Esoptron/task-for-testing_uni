@@ -5,8 +5,8 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
 
@@ -27,26 +27,18 @@ def driver():
     drv.quit()
 
 
-def wait(drv, seconds=10):
-    return WebDriverWait(drv, seconds)
-
-
 def open_app(drv):
     url = Path("dist/index.html").resolve().as_uri()
     drv.get(url)
 
 
-def select_rub_account(drv):
-    wait(drv).until(
-        EC.element_to_be_clickable(
-            (By.XPATH, "//h2[normalize-space()='Рублик']")
-        )
-    ).click()
+def wait(drv, seconds=10):
+    return WebDriverWait(drv, seconds)
 
 
 def find_card_input(drv):
     return wait(drv).until(
-        EC.presence_of_element_located(
+        EC.visibility_of_element_located(
             (By.XPATH, "//input[@placeholder='0000 0000 0000 0000']")
         )
     )
@@ -54,7 +46,7 @@ def find_card_input(drv):
 
 def find_amount_input(drv):
     return wait(drv).until(
-        EC.presence_of_element_located(
+        EC.visibility_of_element_located(
             (By.XPATH, "//input[@placeholder='1000']")
         )
     )
@@ -62,30 +54,28 @@ def find_amount_input(drv):
 
 def find_transfer_button(drv):
     return wait(drv).until(
-        EC.presence_of_element_located(
-            (By.XPATH, "//button[contains(., 'Перевести')]")
+        EC.visibility_of_element_located(
+            (By.XPATH, "//button[contains(normalize-space(), 'Перевести')]")
         )
     )
 
 
 def test_bug_001_card_number_must_be_16_digits(driver):
     open_app(driver)
-    select_rub_account(driver)
 
     card_input = find_card_input(driver)
-
     card_input.clear()
     card_input.send_keys("12345678901234567")
 
     normalized = card_input.get_attribute("value").replace(" ", "")
 
-    assert len(normalized) == 16, \
+    assert len(normalized) == 16, (
         "Card number must be limited to 16 digits"
+    )
 
 
 def test_bug_002_negative_transfer_must_be_blocked(driver):
     open_app(driver)
-    select_rub_account(driver)
 
     card_input = find_card_input(driver)
     card_input.clear()
@@ -97,5 +87,6 @@ def test_bug_002_negative_transfer_must_be_blocked(driver):
 
     transfer_button = find_transfer_button(driver)
 
-    assert not transfer_button.is_enabled(), \
+    assert not transfer_button.is_enabled(), (
         "Transfer button must be disabled for negative amount"
+    )
