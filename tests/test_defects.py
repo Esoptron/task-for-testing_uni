@@ -70,17 +70,24 @@ def open_app(drv, app_url):
 
 
 def select_rub_account(drv):
-    rub_sum = wait(drv).until(
-        EC.presence_of_element_located((By.ID, "rub-sum"))
+    rub_card_title = wait(drv).until(
+        EC.presence_of_element_located(
+            (By.XPATH, "//h2[normalize-space()='Рубли']")
+        )
+    )
+
+    rub_click_target = rub_card_title.find_element(
+        By.XPATH,
+        "./ancestor::*[self::button or @role='button' or self::div][1]"
     )
 
     drv.execute_script(
         "arguments[0].scrollIntoView({block: 'center'});",
-        rub_sum
+        rub_click_target
     )
     drv.execute_script(
         "arguments[0].click();",
-        rub_sum
+        rub_click_target
     )
 
 
