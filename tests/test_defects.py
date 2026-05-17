@@ -62,11 +62,13 @@ def open_app(drv, app_url):
     drv.get(app_url)
 
     wait(drv).until(
-        lambda driver: driver.find_element(By.TAG_NAME, "body").text.strip()
+        lambda driver: driver.execute_script(
+            "return document.readyState"
+        ) == "complete"
     )
 
 
-def select_rub_account(drv):
+def select_account_with_transfer_form(drv):
     cards = wait(drv).until(
         lambda driver: driver.find_elements(By.CSS_SELECTOR, "[role='button']")
     )
@@ -101,7 +103,8 @@ def find_transfer_button(drv):
     return wait(drv).until(
         lambda driver: next(
             (
-                button for button in driver.find_elements(By.CSS_SELECTOR, "button")
+                button
+                for button in driver.find_elements(By.CSS_SELECTOR, "button")
                 if "Перевести" in button.text
             ),
             False
@@ -118,7 +121,7 @@ def set_input_value(element, value):
 
 def test_bug_001_card_number_must_be_16_digits(driver, app_url):
     open_app(driver, app_url)
-    select_rub_account(driver)
+    select_account_with_transfer_form(driver)
 
     card_input = find_card_input(driver)
     set_input_value(card_input, "12345678901234567")
@@ -132,7 +135,7 @@ def test_bug_001_card_number_must_be_16_digits(driver, app_url):
 
 def test_bug_002_negative_transfer_must_be_blocked(driver, app_url):
     open_app(driver, app_url)
-    select_rub_account(driver)
+    select_account_with_transfer_form(driver)
 
     card_input = find_card_input(driver)
     set_input_value(card_input, "1234567890123456")
