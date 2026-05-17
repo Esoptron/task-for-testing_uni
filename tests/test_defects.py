@@ -71,45 +71,70 @@ def open_app(drv, app_url):
 
     wait(drv).until(
         lambda driver: driver.execute_script(
-            "return document.getElementById('root')"
-            " && document.getElementById('root').children.length > 0"
+            """
+            const root = document.getElementById('root');
+            return root && root.children.length > 0;
+            """
         )
     )
 
 
-def get_visible_inputs(drv):
-    inputs = drv.find_elements(By.CSS_SELECTOR, "input")
-    return [
-        input_element
-        for input_element in inputs
-        if input_element.is_displayed()
-    ]
+def get_inputs(drv):
+    return drv.find_elements(By.CSS_SELECTOR, "input")
 
 
 def wait_for_transfer_form(drv, seconds=5):
     return WebDriverWait(drv, seconds).until(
-        lambda driver: get_visible_inputs(driver)
-        if len(get_visible_inputs(driver)) >= 2
+        lambda driver: get_inputs(driver)
+        if len(get_inputs(driver)) >= 2
         else False
     )
 
 
-def get_clickable_ancestor(drv, element):
+def dispatch_real_click(drv, element):
+    drv.execute_script(
+        "arguments[0].scrollIntoView({block: 'center', inline: 'center'});",
+        element
+    )
+
+    try:
+        ActionChains(drv).move_to_element(element).pause(0.1).click().perform()
+    except Exception:
+        pass
+
+    drv.execute_script(
+        """
+        const element = arguments[0];
+
+        for (const eventName of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+            element.dispatchEvent(
+                new MouseEvent(eventName, {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window
+                })
+            );
+        }
+        """,
+        element
+    )
+
+
+def find_clickable_ancestor(drv, element):
     return drv.execute_script(
         """
         let element = arguments[0];
 
         while (element && element !== document.body) {
-            const role = element.getAttribute("role");
-            const tagName = element.tagName.toLowerCase();
+            const role = element.getAttribute('role');
+            const tag = element.tagName.toLowerCase();
             const cursor = window.getComputedStyle(element).cursor;
 
             if (
-                role === "button" ||
-                tagName === "button" ||
-                tagName === "a" ||
-                cursor === "pointer" ||
-                element.onclick
+                role === 'button' ||
+                tag === 'button' ||
+                tag === 'a' ||
+                cursor === 'pointer'
             ) {
                 return element;
             }
@@ -123,80 +148,185 @@ def get_clickable_ancestor(drv, element):
     )
 
 
-def click_element(drv, element):
-    drv.execute_script(
-        "arguments[0].scrollIntoView({block: 'center'});",
-        element
-    )
+def find_account_related_elements(drv):
+    result = []
 
-    try:
-        ActionChains(drv).move_to_element(element).click().perform()
-    except Exception:
-        drv.execute_script("arguments[0].click();", element)
+    selectors = [
+        "h1",
+        "h2",
+        "h3",
+        "p",
+        "span",
+        "[id*='rub']",
+        "[id*='usd']",
+        "[id*='euro']",
+        "[role='button']",
+        "button",
+        "a"
+    ]
 
-
-def find_account_elements(drv):
-    elements = []
-
-    for selector in ["h2", "h3", "p", "span", "div"]:
+    for selector in selectors:
         for element in drv.find_elements(By.CSS_SELECTOR, selector):
-            text = element.text.strip().lower()
+            try:
+                text = element.text.strip().lower()
+                element_id = (element.get_attribute("id") or "").lower()
+                class_name = (element.get_attribute("class") or "").lower()
 
-            if not text:
+                haystack = f"{text} {element_id} {class_name}"
+
+                if (
+                    "руб" in haystack or
+                    "rub" in haystack or
+                    "доллар" in haystack or
+                    "usd" in haystack or
+                    "евро" in haystack or
+                    "euro" in haystack
+                ):
+                    result.append(element)
+            except Exception:
                 continue
 
-            if "руб" in text or "rub" in text:
-                elements.append(element)
+    unique = []
+    seen = set()
 
-    return elements
+    for element in result:
+        try:
+            element_id = element.id
+            if element_id not in seen:
+                seen.add(element_id)
+                unique.append(element)
+        except Exception:
+            continue
+
+    return unique
 
 
-def select_account_with_transfer_form(drv):
-    account_elements = wait(drv).until(
-        lambda driver: find_account_elements(driver)
-    )
+def try_open_form_by_clicking(drv):
+    if len(get_inputs(drv)) >= 2:
+        return True
+
+    account_elements = find_account_related_elements(drv)
 
     for account_element in account_elements:
         try:
-            clickable_element = get_clickable_ancestor(drv, account_element)
-            click_element(drv, clickable_element)
-            wait_for_transfer_form(drv, seconds=4)
-            return
+            clickable = find_clickable_ancestor(drv, account_element)
+            dispatch_real_click(drv, clickable)
+            wait_for_transfer_form(drv, seconds=3)
+            return True
         except Exception:
             continue
 
-    fallback_clickable_elements = drv.find_elements(
+    clickables = drv.find_elements(
         By.CSS_SELECTOR,
-        "[role='button'], button, a"
+        "[role='button'], button, a, .g-card, .g-card_clickable"
     )
 
-    for clickable_element in fallback_clickable_elements:
+    for clickable in clickables:
         try:
-            click_element(drv, clickable_element)
-            wait_for_transfer_form(drv, seconds=4)
-            return
+            dispatch_real_click(drv, clickable)
+            wait_for_transfer_form(drv, seconds=3)
+            return True
         except Exception:
             continue
+
+    return False
+
+
+def try_open_form_by_routes(drv):
+    candidate_paths = [
+        "/",
+        "/rub",
+        "/rub/",
+        "/ruble",
+        "/ruble/",
+        "/rubles",
+        "/rubles/",
+        "/rublik",
+        "/rublik/",
+        "/account/rub",
+        "/account/rub/",
+        "/accounts/rub",
+        "/accounts/rub/",
+        "/transfer",
+        "/transfer/",
+        "/transfer/rub",
+        "/transfer/rub/",
+        "/transfer?currency=rub",
+        "/transfer?account=rub",
+        "/?currency=rub",
+        "/?account=rub",
+        "/#/",
+        "/#/rub",
+        "/#/transfer",
+        "/#/transfer/rub",
+    ]
+
+    for path in candidate_paths:
+        try:
+            drv.execute_script(
+                """
+                window.history.pushState({}, '', arguments[0]);
+                window.dispatchEvent(new PopStateEvent('popstate'));
+                """,
+                path
+            )
+
+            wait_for_transfer_form(drv, seconds=2)
+            return True
+        except Exception:
+            continue
+
+    return False
+
+
+def debug_page_state(drv):
+    buttons = []
+
+    for element in drv.find_elements(By.CSS_SELECTOR, "[role='button'], button, a"):
+        try:
+            buttons.append({
+                "tag": element.tag_name,
+                "text": element.text,
+                "id": element.get_attribute("id"),
+                "class": element.get_attribute("class"),
+                "href": element.get_attribute("href"),
+            })
+        except Exception:
+            continue
+
+    return (
+        f"URL: {drv.current_url}\n"
+        f"TITLE: {drv.title}\n"
+        f"INPUTS_COUNT: {len(get_inputs(drv))}\n"
+        f"CLICKABLES: {buttons}\n"
+        f"BODY:\n{drv.find_element(By.TAG_NAME, 'body').text}\n"
+        f"HTML:\n{drv.page_source}"
+    )
+
+
+def select_account_with_transfer_form(drv):
+    if len(get_inputs(drv)) >= 2:
+        return
+
+    if try_open_form_by_clicking(drv):
+        return
+
+    if try_open_form_by_routes(drv):
+        return
 
     raise AssertionError(
-        "Transfer form was not opened after clicking account elements"
-    )
-
-
-def get_inputs(drv):
-    return wait(drv).until(
-        lambda driver: get_visible_inputs(driver)
-        if len(get_visible_inputs(driver)) >= 2
-        else False
+        "Transfer form was not opened.\n\n" + debug_page_state(drv)
     )
 
 
 def find_card_input(drv):
-    return get_inputs(drv)[0]
+    inputs = wait_for_transfer_form(drv)
+    return inputs[0]
 
 
 def find_amount_input(drv):
-    return get_inputs(drv)[1]
+    inputs = wait_for_transfer_form(drv)
+    return inputs[1]
 
 
 def set_input_value(element, value):
@@ -207,10 +337,12 @@ def set_input_value(element, value):
 
 
 def find_transfer_buttons(drv):
+    buttons = drv.find_elements(By.CSS_SELECTOR, "button")
+
     return [
         button
-        for button in drv.find_elements(By.CSS_SELECTOR, "button")
-        if "Перевести" in button.text
+        for button in buttons
+        if "перевести" in button.text.strip().lower()
     ]
 
 
