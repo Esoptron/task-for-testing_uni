@@ -10,7 +10,6 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 
@@ -63,38 +62,29 @@ def open_app(drv, app_url):
     drv.get(app_url)
 
     wait(drv).until(
-        EC.presence_of_element_located(
-            (By.XPATH, "//*[contains(normalize-space(), 'F-Bank')]")
-        )
+        lambda driver: driver.find_element(By.TAG_NAME, "body").text.strip()
     )
 
 
 def select_rub_account(drv):
-    rub_card_title = wait(drv).until(
-        EC.presence_of_element_located(
-            (By.XPATH, "//h2[normalize-space()='Рубли']")
-        )
+    cards = wait(drv).until(
+        lambda driver: driver.find_elements(By.CSS_SELECTOR, "[role='button']")
     )
 
-    rub_click_target = rub_card_title.find_element(
-        By.XPATH,
-        "./ancestor::*[self::button or @role='button' or self::div][1]"
-    )
+    for card in cards:
+        drv.execute_script("arguments[0].click();", card)
 
-    drv.execute_script(
-        "arguments[0].scrollIntoView({block: 'center'});",
-        rub_click_target
-    )
-    drv.execute_script(
-        "arguments[0].click();",
-        rub_click_target
-    )
+        inputs = drv.find_elements(By.CSS_SELECTOR, "input")
+        if len(inputs) >= 2:
+            return
+
+    raise AssertionError("Transfer form was not opened after clicking account cards")
 
 
 def get_inputs(drv):
     return wait(drv).until(
-        lambda driver: driver.find_elements(By.CSS_SELECTOR, "input[type='text']")
-        if len(driver.find_elements(By.CSS_SELECTOR, "input[type='text']")) >= 2
+        lambda driver: driver.find_elements(By.CSS_SELECTOR, "input")
+        if len(driver.find_elements(By.CSS_SELECTOR, "input")) >= 2
         else False
     )
 
@@ -109,11 +99,12 @@ def find_amount_input(drv):
 
 def find_transfer_button(drv):
     return wait(drv).until(
-        EC.presence_of_element_located(
+        lambda driver: next(
             (
-                By.XPATH,
-                "//button[contains(normalize-space(), 'Перевести')]"
-            )
+                button for button in driver.find_elements(By.CSS_SELECTOR, "button")
+                if "Перевести" in button.text
+            ),
+            False
         )
     )
 
