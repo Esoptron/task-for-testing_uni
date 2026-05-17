@@ -5,8 +5,8 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 
@@ -18,9 +18,17 @@ def driver():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--allow-file-access-from-files")
 
-    drv = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    drv = webdriver.Chrome(
+        service=Service(ChromeDriverManager().install()),
+        options=options
+    )
+
     yield drv
     drv.quit()
+
+
+def wait(drv, seconds=10):
+    return WebDriverWait(drv, seconds)
 
 
 def open_app(drv):
@@ -28,18 +36,18 @@ def open_app(drv):
     drv.get(url)
 
 
-def wait(drv, seconds=10):
-    return WebDriverWait(drv, seconds)
-
-
 def select_rub_account(drv):
-    pass
+    wait(drv).until(
+        EC.element_to_be_clickable(
+            (By.XPATH, "//h2[normalize-space()='Рублик']")
+        )
+    ).click()
 
 
 def find_card_input(drv):
     return wait(drv).until(
         EC.presence_of_element_located(
-            (By.XPATH, "//*[contains(normalize-space(), 'Номер карты')]/following::input[1]")
+            (By.XPATH, "//input[@placeholder='0000 0000 0000 0000']")
         )
     )
 
@@ -47,15 +55,16 @@ def find_card_input(drv):
 def find_amount_input(drv):
     return wait(drv).until(
         EC.presence_of_element_located(
-            (By.XPATH, "//*[contains(normalize-space(), 'Сумма перевода')]/following::input[1]")
+            (By.XPATH, "//input[@placeholder='1000']")
         )
     )
 
 
-def find_transfer_buttons(drv):
-    return drv.find_elements(
-        By.XPATH,
-        "//button[contains(normalize-space(), 'Перевести')]"
+def find_transfer_button(drv):
+    return wait(drv).until(
+        EC.presence_of_element_located(
+            (By.XPATH, "//button[contains(., 'Перевести')]")
+        )
     )
 
 
@@ -64,11 +73,14 @@ def test_bug_001_card_number_must_be_16_digits(driver):
     select_rub_account(driver)
 
     card_input = find_card_input(driver)
+
     card_input.clear()
     card_input.send_keys("12345678901234567")
 
     normalized = card_input.get_attribute("value").replace(" ", "")
-    assert len(normalized) == 16, "Card number must be limited to 16 digits"
+
+    assert len(normalized) == 16, \
+        "Card number must be limited to 16 digits"
 
 
 def test_bug_002_negative_transfer_must_be_blocked(driver):
@@ -83,5 +95,7 @@ def test_bug_002_negative_transfer_must_be_blocked(driver):
     amount_input.clear()
     amount_input.send_keys("-1000")
 
-    buttons = find_transfer_buttons(driver)
-    assert len(buttons) == 0, "Transfer button must not be visible for negative amount"
+    transfer_button = find_transfer_button(driver)
+
+    assert not transfer_button.is_enabled(), \
+        "Transfer button must be disabled for negative amount"
