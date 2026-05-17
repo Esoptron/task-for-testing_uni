@@ -60,12 +60,14 @@ def wait(drv, seconds=10):
 
 def open_app(drv, app_url):
     drv.get(app_url)
-
     wait(drv).until(
-        lambda driver: driver.execute_script(
-            "return document.readyState"
-        ) == "complete"
+        lambda driver: driver.execute_script("return document.readyState") == "complete"
     )
+
+    print("CURRENT URL:", drv.current_url)
+    print("TITLE:", drv.title)
+    print("BODY:", drv.find_element(By.TAG_NAME, "body").text)
+    print("HTML:", drv.page_source)
 
 
 def select_account_with_transfer_form(drv):
