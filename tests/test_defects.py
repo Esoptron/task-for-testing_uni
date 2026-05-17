@@ -9,8 +9,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 
@@ -69,26 +69,49 @@ def open_app(drv, app_url):
     )
 
 
-def find_card_input(drv):
-    return wait(drv).until(
-        EC.visibility_of_element_located(
-            (By.CSS_SELECTOR, "input[placeholder*='0000']")
-        )
+def select_rub_account(drv):
+    rub_sum = wait(drv).until(
+        EC.presence_of_element_located((By.ID, "rub-sum"))
     )
+
+    rub_card = rub_sum.find_element(
+        By.XPATH,
+        "./ancestor::div[@role='button'][1]"
+    )
+
+    drv.execute_script(
+        "arguments[0].scrollIntoView({block: 'center'});",
+        rub_card
+    )
+    drv.execute_script(
+        "arguments[0].click();",
+        rub_card
+    )
+
+
+def get_inputs(drv):
+    return wait(drv).until(
+        lambda driver: driver.find_elements(By.CSS_SELECTOR, "input[type='text']")
+        if len(driver.find_elements(By.CSS_SELECTOR, "input[type='text']")) >= 2
+        else False
+    )
+
+
+def find_card_input(drv):
+    return get_inputs(drv)[0]
 
 
 def find_amount_input(drv):
-    return wait(drv).until(
-        EC.visibility_of_element_located(
-            (By.CSS_SELECTOR, "input[placeholder='1000']")
-        )
-    )
+    return get_inputs(drv)[1]
 
 
 def find_transfer_button(drv):
     return wait(drv).until(
-        EC.visibility_of_element_located(
-            (By.XPATH, "//button[.//*[contains(normalize-space(), 'Перевести')] or contains(normalize-space(), 'Перевести')]")
+        EC.presence_of_element_located(
+            (
+                By.XPATH,
+                "//button[contains(normalize-space(), 'Перевести')]"
+            )
         )
     )
 
@@ -102,6 +125,7 @@ def set_input_value(element, value):
 
 def test_bug_001_card_number_must_be_16_digits(driver, app_url):
     open_app(driver, app_url)
+    select_rub_account(driver)
 
     card_input = find_card_input(driver)
     set_input_value(card_input, "12345678901234567")
@@ -115,6 +139,7 @@ def test_bug_001_card_number_must_be_16_digits(driver, app_url):
 
 def test_bug_002_negative_transfer_must_be_blocked(driver, app_url):
     open_app(driver, app_url)
+    select_rub_account(driver)
 
     card_input = find_card_input(driver)
     set_input_value(card_input, "1234567890123456")
