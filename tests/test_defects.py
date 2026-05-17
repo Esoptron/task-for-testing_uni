@@ -27,14 +27,22 @@ def open_app(drv):
 
 
 def select_rub_account(drv):
-    drv.find_element(By.XPATH, "//h2[text()='Рубли']").click()
+    drv.find_element(By.XPATH, "//h2[normalize-space()='Рубли']").click()
+
+
+def find_card_input(drv):
+    return drv.find_element(By.XPATH, "//h3[normalize-space()='Номер карты:']/following::input[1]")
+
+
+def find_amount_input(drv):
+    return drv.find_element(By.XPATH, "//h3[normalize-space()='Сумма перевода:']/following::input[1]")
 
 
 def test_bug_001_card_number_must_be_16_digits(driver):
     open_app(driver)
     select_rub_account(driver)
 
-    card_input = driver.find_element(By.CSS_SELECTOR, "input[placeholder='0000 0000 0000 0000']")
+    card_input = find_card_input(driver)
     card_input.send_keys("12345678901234567")
 
     normalized = card_input.get_attribute("value").replace(" ", "")
@@ -45,10 +53,10 @@ def test_bug_002_negative_transfer_must_be_blocked(driver):
     open_app(driver)
     select_rub_account(driver)
 
-    card_input = driver.find_element(By.CSS_SELECTOR, "input[placeholder='0000 0000 0000 0000']")
+    card_input = find_card_input(driver)
     card_input.send_keys("1234567890123456")
 
-    amount_input = driver.find_element(By.CSS_SELECTOR, "input[placeholder='1000']")
+    amount_input = find_amount_input(driver)
     amount_input.clear()
     amount_input.send_keys("-1000")
 
