@@ -2,6 +2,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
+import time
 
 import pytest
 from selenium import webdriver
@@ -44,6 +45,7 @@ def driver():
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1920,1080")
+    options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
 
     drv = webdriver.Chrome(
         service=Service(ChromeDriverManager().install()),
@@ -51,6 +53,18 @@ def driver():
     )
 
     yield drv
+
+    print("\n===== BROWSER LOGS =====")
+    try:
+        logs = drv.get_log("browser")
+        if logs:
+            for log in logs:
+                print(log)
+        else:
+            print("No browser logs")
+    except Exception as error:
+        print("Could not read browser logs:", error)
+
     drv.quit()
 
 
@@ -60,10 +74,16 @@ def wait(drv, seconds=10):
 
 def open_app(drv, app_url):
     drv.get(app_url)
+
     wait(drv).until(
-        lambda driver: driver.execute_script("return document.readyState") == "complete"
+        lambda driver: driver.execute_script(
+            "return document.readyState"
+        ) == "complete"
     )
 
+    time.sleep(2)
+
+    print("\n===== PAGE DEBUG =====")
     print("CURRENT URL:", drv.current_url)
     print("TITLE:", drv.title)
     print("BODY:", drv.find_element(By.TAG_NAME, "body").text)
@@ -76,6 +96,7 @@ def select_account_with_transfer_form(drv):
     )
 
     for card in cards:
+        drv.execute_script("arguments[0].scrollIntoView({block: 'center'});", card)
         drv.execute_script("arguments[0].click();", card)
 
         inputs = drv.find_elements(By.CSS_SELECTOR, "input")
