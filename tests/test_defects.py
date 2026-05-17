@@ -64,10 +64,6 @@ def get_account_cards(driver):
     return driver.find_elements(By.CSS_SELECTOR, ".g-card_clickable")
 
 
-def get_inputs(driver):
-    return driver.find_elements(By.CSS_SELECTOR, "input")
-
-
 def click_first_available_account(driver):
     cards = get_account_cards(driver)
 
@@ -75,16 +71,36 @@ def click_first_available_account(driver):
         "Account cards must be visible on the main page"
     )
 
-    for card in cards:
-        ActionChains(driver).move_to_element(card).click().perform()
-        time.sleep(1)
+    ActionChains(driver).move_to_element(cards[0]).click().perform()
+    time.sleep(1)
 
-        if len(get_inputs(driver)) >= 2:
-            return
 
-    assert len(get_inputs(driver)) >= 2, (
-        "Transfer form must open after clicking an account card"
-    )
+def find_card_input(driver):
+    inputs = driver.find_elements(By.CSS_SELECTOR, "input")
+
+    for input_element in inputs:
+        placeholder = (
+            input_element.get_attribute("placeholder") or ""
+        ).lower()
+
+        if "0000" in placeholder:
+            return input_element
+
+    return None
+
+
+def find_amount_input(driver):
+    inputs = driver.find_elements(By.CSS_SELECTOR, "input")
+
+    for input_element in inputs:
+        placeholder = (
+            input_element.get_attribute("placeholder") or ""
+        ).lower()
+
+        if "1000" in placeholder:
+            return input_element
+
+    return None
 
 
 def set_input_value(element, value):
@@ -99,13 +115,12 @@ def test_bug_001_card_number_must_be_16_digits(driver, app_url):
 
     click_first_available_account(driver)
 
-    inputs = get_inputs(driver)
+    card_input = find_card_input(driver)
 
-    assert len(inputs) >= 2, (
-        "Transfer form must contain card number and amount inputs"
+    assert card_input is not None, (
+        "Card number input must exist"
     )
 
-    card_input = inputs[0]
     set_input_value(card_input, "12345678901234567")
 
     normalized = card_input.get_attribute("value").replace(" ", "")
@@ -120,14 +135,16 @@ def test_bug_002_negative_transfer_must_be_blocked(driver, app_url):
 
     click_first_available_account(driver)
 
-    inputs = get_inputs(driver)
+    card_input = find_card_input(driver)
+    amount_input = find_amount_input(driver)
 
-    assert len(inputs) >= 2, (
-        "Transfer form must contain card number and amount inputs"
+    assert card_input is not None, (
+        "Card number input must exist"
     )
 
-    card_input = inputs[0]
-    amount_input = inputs[1]
+    assert amount_input is not None, (
+        "Amount input must exist"
+    )
 
     set_input_value(card_input, "1234567890123456")
     set_input_value(amount_input, "-1000")
