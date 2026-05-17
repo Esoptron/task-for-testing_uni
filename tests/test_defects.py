@@ -74,18 +74,13 @@ def select_rub_account(drv):
         EC.presence_of_element_located((By.ID, "rub-sum"))
     )
 
-    rub_card = rub_sum.find_element(
-        By.XPATH,
-        "./ancestor::div[@role='button'][1]"
-    )
-
     drv.execute_script(
         "arguments[0].scrollIntoView({block: 'center'});",
-        rub_card
+        rub_sum
     )
     drv.execute_script(
         "arguments[0].click();",
-        rub_card
+        rub_sum
     )
 
 
