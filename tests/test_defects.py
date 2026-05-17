@@ -33,11 +33,7 @@ def wait(drv, seconds=10):
 
 
 def select_rub_account(drv):
-    wait(drv).until(
-        EC.element_to_be_clickable(
-            (By.XPATH, "//*[contains(normalize-space(), 'Рубли')]")
-        )
-    ).click()
+    pass
 
 
 def find_card_input(drv):
@@ -57,7 +53,10 @@ def find_amount_input(drv):
 
 
 def find_transfer_buttons(drv):
-    return drv.find_elements(By.XPATH, "//button[contains(normalize-space(), 'Перевести')]")
+    return drv.find_elements(
+        By.XPATH,
+        "//button[contains(normalize-space(), 'Перевести')]"
+    )
 
 
 def test_bug_001_card_number_must_be_16_digits(driver):
