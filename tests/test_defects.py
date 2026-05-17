@@ -108,6 +108,7 @@ def set_input_value(element, value):
     element.send_keys(Keys.CONTROL, "a")
     element.send_keys(Keys.BACKSPACE)
     element.send_keys(value)
+    time.sleep(1)
 
 
 def test_bug_001_card_number_must_be_16_digits(driver, app_url):
@@ -136,17 +137,19 @@ def test_bug_002_negative_transfer_must_be_blocked(driver, app_url):
     click_first_available_account(driver)
 
     card_input = find_card_input(driver)
-    amount_input = find_amount_input(driver)
 
     assert card_input is not None, (
         "Card number input must exist"
     )
 
+    set_input_value(card_input, "1234567890123456")
+
+    amount_input = find_amount_input(driver)
+
     assert amount_input is not None, (
-        "Amount input must exist"
+        "Amount input must exist after entering a valid card number"
     )
 
-    set_input_value(card_input, "1234567890123456")
     set_input_value(amount_input, "-1000")
 
     buttons = driver.find_elements(By.CSS_SELECTOR, "button")
